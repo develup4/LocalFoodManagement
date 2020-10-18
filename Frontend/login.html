@@ -1,0 +1,236 @@
+<html xmlns="http://www.w3.org/1999/xhtml" ng-app="login">
+    <head>
+        <title>로컬푸드 재고관리시스템</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <!-- 부트스트랩 -->
+        <link href="./css/bootstrap.min.css" rel="stylesheet" media="screen">
+        <link rel="stylesheet" type="text/css" href="./css/css.css">
+        <script type="text/javascript" src="http://code.jquery.com/jquery-latest.js"></script>
+        <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.2.27/angular.min.js"></script>
+        <script src="http://54.64.220.92:8000/socket.io/socket.io.js"></script>
+        <script>
+            // socket.io 모듈 생성
+            var app = angular.module('login', []);
+            app.factory('socket', function($rootScope) {
+                var socket = io .connect('http://54.64.220.92:8000');
+                return {
+                    on: function(eventName , callback) {
+                        socket.on(eventName, function() {
+                            var args = arguments;
+                            $rootScope.$apply(function() {
+                                callback.apply(socket, args);
+                            });
+                        });
+                    },
+                    emit: function(eventName, data, callback) {
+                        socket.emit(eventName, data, function() {
+                            var args = arguments;
+                            $rootScope.$apply(function() {
+                                if (callback) {
+                                    callback.apply(socket, args);
+                                }
+                            });
+                        })
+                    }
+                };
+            });
+
+            // Controller
+            function loginController($scope, socket) {
+                $scope.loginInfo = {
+                    id: "",
+                    pw: ""
+                }
+
+                $scope.registInfo = {
+                    id: "",
+                    pw: "",
+                    pw_confirm: "",
+                    name: "",
+                    phone: "",
+                    authCode: "",
+                    auth: false
+                }
+
+                // 로그인 결과
+                socket.on('LoginResult', function(result)
+                {
+                    if(result == "success")
+                    {
+                        alert("로그인 되었습니다.");
+
+                        //window.location.href="main";
+                        return;
+                    }
+                    else if(result == "id_fail")
+                    {
+                        alert("아이디가 존재하지 않습니다.");
+                    }
+                    else if(result == "pw_fail")
+                    {
+                        alert("패스워드가 일치하지 않습니다.");
+                    }
+                    else
+                    {
+                        alert("로그인에 실패하였습니다. 다시 시도하여 주세요.");
+                    }
+                });
+
+                socket.on('RegistResult', function(result)
+                {
+                    if(result == "success")
+                    {
+                        alert("회원가입이 되었습니다.");
+                    }
+                    else
+                    {
+                        alert("회원가입에 실패하였습니다. 다시 시도하여주세요.");
+                    }
+                });
+
+                $scope.Login = function($event) {
+                    // Validation
+                    if ($scope.loginInfo.id == "" || $scope.loginInfo.pw == "")
+                    {
+                        alert("빈 항목이 있습니다.");
+                        return;
+                    }
+
+                    // 서버에 보내기
+                    socket.emit('LoginAttempt', JSON.stringify($scope.loginInfo));
+
+                    // 입력 내용 초기화
+                    $scope.loginInfo.id = "";
+                    $scope.loginInfo.pw = "";
+                }
+
+                $scope.Regist = function($event) {
+                    // Validation
+                    if ($scope.registInfo.id == "" || $scope.registInfo.pw == "" || $scope.registInfo.pw_confirm == "" || $scope.registInfo.name == "" || $scope.registInfo.phone == "") {
+                        alert("빈 항목이 있습니다.");
+                        return;
+                    }
+                    if ($scope.registInfo.auth == false) {
+                        alert("인증을 진행하여주세요.");
+                        return;
+                    }
+                    if($scope.registInfo.pw != $scope.registInfo.pw_confirm)
+                    {
+                        alert("패스워드가 서로 일치하지 않습니다.");
+                        return;
+                    }
+
+                    // 서버에 보내기
+                    socket.emit('RegistAttempt', JSON.stringify($scope.registInfo));
+
+                    // 입력 내용 초기화
+                    $scope.registInfo.id = "";
+                    $scope.registInfo.pw = "";
+                    $scope.registInfo.pw_confirm = "";
+                    $scope.registInfo.name = "";
+                    $scope.registInfo.phone = "";
+                    $scope.registInfo.auth = false;
+                }
+
+                $scope.AuthAttempt = function($event) {
+                    if ($scope.registInfo.phone != "") alert("인증코드가 생성되었습니다.");
+                }
+
+                $scope.Auth = function($event) {
+                    if ($scope.registInfo.authCode != "") {
+                        $scope.registInfo.auth = true;
+                        alert("인증되었습니다.");
+                        $scope.registInfo.authCode = "";
+                    }
+                }
+            }
+        </script>
+    </head>
+    <body class="localfood-bg-image-1" ng-controller="loginController">
+        <h1 class="margin-bottom-15"><p><span>로컬 푸드</span></p>
+        <span>재고 관리 시스템</span></h1>
+
+        <form class="form-horizontal" role="form">
+        <div class="localfood-form-group-login">
+        <div class="localfood-form-group-btn-login">
+           <div class="col-lg-offset-2">
+             <button ng-click="Login($event)" class="btn btn-info btn-lg btn-login">
+                로그인
+             </button>
+               <span><a href="Table.html"><img src="imgs/gara.PNG"></br></a></span>
+           </div>
+        </div>
+            <span class="login-input">
+            <input ng-model="loginInfo.id" class="form-control input-lg" id="inputEmail1" placeholder="아이디" />
+            </span>
+
+            <span class="login-input">
+              <input type="password" ng-model="loginInfo.pw" class="form-control input-lg" id="inputPassword1" placeholder="비밀번호">
+            </span>
+
+            <!--
+            <span class="col-lg-9 bottom-space">
+              <div class="checkbox">
+                <label>
+                  <input type="checkbox"> 로그인 상태 유지
+                </label>
+              </div>
+            </span>
+            -->
+
+        </div>
+        <div class="center">
+                    <!-- Button trigger modal -->
+                    <button data-toggle="modal" data-target="#join1" class="btn-img">
+                      <img src="imgs/btn_join1.png" />
+                    </button>
+        <button data-toggle="modal" data-target="#join2" class="btn-img">
+                      <img src="imgs/btn_join2.png" />
+                    </button>
+        </div>
+        </form>
+        <div class="modal fade" id="join1" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+          <div class="modal-dialog localfood-modal-width">
+            <div class="modal-content">
+              <div class="modal-header localfood-modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true"><img src="imgs/x.png" /></button>
+                <h4 class="modal-title localfood_font">매장관리자 회원가입</h4>
+              </div>
+              <div class="modal-body">
+                    <input ng-model="registInfo.id" class="form-control input-lg bottom-space" placeholder="아이디" />
+                    <input type="password" ng-model="registInfo.pw" class="form-control input-lg bottom-space" placeholder="비밀번호" />
+                    <input type="password" ng-model="registInfo.pw_confirm" class="form-control input-lg bottom-space" placeholder="비밀번호 확인" />
+                    <input ng-model="registInfo.name" class="form-control input-lg bottom-space" placeholder="이름" />
+                    <div class = "have-btn">
+                    <input ng-model="registInfo.phone" class="form-control input-lg bottom-space" placeholder="휴대전화번호" />
+                    <button type="button" ng-click="AuthAttempt($event)" class="btn btn-default inside inside-btn">인증</button>
+                    </div>
+                    <div class = "have-btn">
+                    <input type="email" ng-model="registInfo.authCode" class="form-control input-lg bottom-space" placeholder="인증코드" />
+                    <button type="button" ng-click="Auth($event)" class="btn btn-default inside inside-btn">확인</button>
+                    </div>
+              </div>
+              <div class="modal-footer">
+                <!--<div class="checkbox modal-txt">
+                    <label>
+                      <input type="checkbox"> 로그인 상태 유지
+                    </label>
+                </div>-->
+                <button type="button" class="btn btn-default" data-dismiss="modal">취소</button>
+                <button type="button" ng-click="Regist($event)" class="btn btn-primary btn-color-sblue">&nbsp;&nbsp;회원가입&nbsp;&nbsp;</button>
+                <div class="modal-link">
+                <a href="#" class="modal-link-txt">이용약관</a>&nbsp;&nbsp;&nbsp; <a href="#" class="modal-link-txt">개인정보보호정책</a>
+                </div>
+              </div>
+            </div><!-- /.modal-content -->
+          </div><!-- /.modal-dialog -->
+        </div><!-- /.modal -->
+
+
+        <!-- Bootstrap core JavaScript
+            ================================================== -->
+            <script src="./js/bootstrap.min.js"></script>
+
+    </body>
+</html>

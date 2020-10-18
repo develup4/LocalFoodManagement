@@ -1,0 +1,531 @@
+<html xmlns="http://www.w3.org/1999/xhtml" ng-app="table">
+<script type="text/javascript" src="http://code.jquery.com/jquery-latest.js"></script>
+    <head>
+        <title>로컬푸드 재고관리시스템</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<link rel="stylesheet" type="text/css" href="./css/css.css">
+        <link rel="stylesheet" href="http://code.jquery.com/ui/1.11.2/themes/smoothness/jquery-ui.css">
+        <link rel="stylesheet" type="text/css" href="css/css.css">
+        <link rel="stylesheet" type="text/css" href="css/rzslider.min.css">
+        <link href="css/bootstrap.min.css" rel="stylesheet" media="screen">
+        <script src="http://code.jquery.com/jquery-1.10.2.js"></script>
+        <script src="http://code.jquery.com/ui/1.11.2/jquery-ui.js"></script>
+        <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.2.27/angular.min.js"></script>
+        <script src="js/ui-bootstrap-tpls-0.12.0.min.js"></script>
+        <script src="js/angular-dragdrop.min.js"></script>
+        <script src="js/rzslider.min.js"></script>
+        <script src="http://54.64.220.92:8000/socket.io/socket.io.js"></script>
+        <style>
+            #tableContainer { float: left; width: 72%; min-height: 50em; }
+            #itemContainer { float: right; width: 26%; min-height: 50em; padding: 1%; }
+            #tableList { list-style-type: none; }
+            .table { width: 310px; float: left; padding-bottom: 30px; }
+            .itemList { min-height: 30em; border: 1px solid; }
+        </style>
+        <script>
+            // 동적 레이아웃 설정
+            $(function() {
+                // 매대 정렬 기능
+                $("#tableList").sortable().disableSelection();
+            });
+
+            // 사용자정의 디렉티브(캔버스와 데이터 동기화)
+            var app = angular.module('table', ['ngDragDrop', 'ui.bootstrap', 'rzModule']);
+            app.directive('tableData', function($http) {
+               return function(scope, element, attrs)
+               {
+
+                   scope.$watch(attrs.tableData, function(newValue, oldValue) {
+                       var context = element[0].getContext('2d');
+                       scope.scaleDraw(context, newValue);
+                   }, true);
+
+               };
+            });
+
+            // socket.io 세팅
+            app.factory('socket', function($rootScope) {
+                var socket = io .connect('http://54.64.220.92:8000');
+                return {
+                    on: function(eventName , callback) {
+                        socket.on(eventName, function() {
+                            var args = arguments;
+                            $rootScope.$apply(function() {
+                                callback.apply(socket, args);
+                            });
+                        });
+                    },
+                    emit: function(eventName, data, callback) {
+                        socket.emit(eventName, data, function() {
+                            var args = arguments;
+                            $rootScope.$apply(function() {
+                                if (callback) {
+                                    callback.apply(socket, args);
+                                }
+                            });
+                        })
+                    }
+                };
+            });
+
+            // 매대 전체 컨트롤러 함수
+            function tablesController($scope, socket) {
+
+                // 알람 처리(공통)
+                socket.on('ResponseAlarms', function(data) {
+                    //var alarms = JSON.parse(data);
+                    $scope.alarms = data;
+                });
+                socket.emit('RequestAlarm');
+
+                // 저울 설정값 세팅
+                $scope.scaleSetting = {
+                    count: 4,
+                    size: {
+                        width: 290,
+                        height: 200
+                    },
+                    state: {
+                        normal: 0,
+                        selected: 1,
+                        occupied: 2,
+                        dropOver: 3
+                    },
+                    scaleColor: [
+                        'rgba(255, 182, 0, 1)',
+                        'rgba(30, 158, 215, 1)',
+                        'rgba(255, 102, 82, 1)',
+                        'rgba(255, 102, 82, 1)'
+                    ],
+                    scaleText: {
+                        color: 'rgba(255, 255, 255, 1)',
+                        position: {
+                            x: 10,
+                            y: 20,
+                            fontSize: 16
+                        }
+                    },
+                    leftBar: {
+                        color: 'rgba(166, 19, 0, 1)',
+                        height: 10
+                    }
+                };
+
+                // 모델(데이터)
+                $scope.tables = [];
+
+                // 웹소켓으로 받아오기
+                socket.emit('RequestTablesInfo');
+                socket.on('ResponseTablesInfo', function(data) {
+                    $scope.scaleCount = 0;
+                    for (var i = 0; i < data.length; i++) {
+                        var temp = {
+                            name: "매대0000" + i,
+                            scales: []
+                        };
+                        for (var j = 0; j < 4; j++) {
+                            temp.scales.push({
+                                code: "0000" + $scope.scaleCount++,
+                                itemName: "",
+                                supplier: "asdf",
+                                state: $scope.scaleSetting.state.normal,
+                                left: Math.ceil(Math.random() * 100),
+                                safeStock: 40,
+                                fitStock: 70,
+                                isAlarm: false
+                            });
+                        }
+                        $scope.tables.push(temp);
+                    }
+                });
+/*
+                socket.on('ResponseScalesInfo', function(data) {
+                    $scope.tables[data.index].scales = data.scales;
+                });*/
+
+
+                // 매대 추가 함수
+                $scope.addTable = function ($event) {
+                    // 로컬에 추가
+                    var temp = {
+                        code: "",
+                        name: "매대0000" + $scope.tables.length,
+                        scales: []
+                    };
+                    for (var j = 0; j < 4; j++) {
+                        temp.scales.push({
+                            code: "0000" + $scope.scaleCount++,
+                            itemName: "",
+                            state: $scope.scaleSetting.state.normal,
+                            left: Math.ceil(Math.random() * 100)
+                        });
+                    }
+                    $scope.tables.push(temp);
+
+                    // 웹소켓으로 서버에 전송
+
+
+                    // 이펙트
+                    $($event.currentTarget).effect("slide");
+                }
+
+                // 매대 제거 함수(일단 이름 더블클릭으로 해놨음)
+                $scope.deleteTable = function ($event, index) {
+                    $($event.currentTarget.parentElement).fadeOut(1000, "easeInOutQuint", function () {
+                        // 로컬에서 제거(임시)
+                        $scope.tables.splice(index, 1);
+
+                        // 웹소켓으로 전송
+
+
+                    });
+                }
+
+                // 저울 캔버스 그리기 함수
+                $scope.scaleDraw = function (context, data) {
+                    for (var i = 0; i < $scope.scaleSetting.count; i++) {
+                        context.fillStyle = $scope.scaleSetting.scaleColor[data.scales[i].state];
+
+                        // 위치
+                        var x, y;
+                        switch(i) {
+                            case 0:
+                                x = 0; y = 0; break;
+                            case 1:
+                                x = $scope.scaleSetting.size.width / 2 + 1; y = 0; break;
+                            case 2:
+                                x = 0; y = $scope.scaleSetting.size.height / 2 + 1; break;
+                            case 3:
+                                x = $scope.scaleSetting.size.width / 2 + 1; y = $scope.scaleSetting.size.height / 2 + 1; break;
+                        }
+
+                        // 칠하기
+                        context.fillRect(x, y, $scope.scaleSetting.size.width / 2 - 1, $scope.scaleSetting.size.height / 2 - 1);
+
+                        // 문자 출력
+                        context.font = "16px 'ok'";
+                        context.fillStyle = $scope.scaleSetting.scaleText.color;
+                        context.fillText(data.scales[i].code, $scope.scaleSetting.scaleText.position.x + x+10, $scope.scaleSetting.scaleText.position.y + y+10);
+                        context.fillText(data.scales[i].itemName, $scope.scaleSetting.scaleText.position.x + x + 10, $scope.scaleSetting.scaleText.position.y + y + 10 + $scope.scaleSetting.scaleText.position.fontSize);
+
+                        // 잔량 표시
+                        if (data.scales[i].state == $scope.scaleSetting.state.occupied) {
+                            context.fillStyle = $scope.scaleSetting.leftBar.color;
+                            context.fillRect(x, y + $scope.scaleSetting.size.height / 2 - 1 - $scope.scaleSetting.leftBar.height, ($scope.scaleSetting.size.width / 2 - 1) / 100 * data.scales[i].left, $scope.scaleSetting.leftBar.height);
+                        }
+                    }
+                }
+
+                $scope.selectScale = function ($event, tableIndex) {
+                    // 캔버스 컨텍스트 얻기
+                    var context = $event.currentTarget.getContext('2d');
+
+                    // 저울 인덱스 알아내기
+                    var scaleIndex = 0;
+                    if ($event.offsetX > $scope.scaleSetting.size.width / 2) scaleIndex++;
+                    if ($event.offsetY > $scope.scaleSetting.size.height / 2) scaleIndex += 2;
+
+                    switch ($scope.tables[tableIndex].scales[scaleIndex].state) {
+                        case $scope.scaleSetting.state.selected:
+                            $scope.tables[tableIndex].scales[scaleIndex].state = $scope.scaleSetting.state.normal;
+                            break;
+                        case $scope.scaleSetting.state.normal:
+                            $scope.tables[tableIndex].scales[scaleIndex].state = $scope.scaleSetting.state.selected;
+                            break;
+                        case $scope.scaleSetting.state.occupied:
+                            $scope.accordion.itemList.open = false;
+                            $scope.accordion.itemList.disable = true;
+                            $scope.accordion.itemInfo.open = true;
+                            $scope.accordion.itemInfo.disable = false;
+
+                            // 선택된 저울 정보
+                            $scope.accordion.itemInfo.tableIndex = tableIndex;
+                            $scope.accordion.itemInfo.scaleIndex = scaleIndex;
+                            break;
+                    }
+                }
+
+                $scope.dropCallback = function (event, ui, index) {
+                    for (var i = 0; i < $scope.scaleSetting.count; i++) {
+                        if ($scope.tables[index].scales[i].state == $scope.scaleSetting.state.selected
+                                || $scope.tables[index].scales[i].state == $scope.scaleSetting.state.dropOver)
+                        {
+                            $scope.tables[index].scales[i].state = $scope.scaleSetting.state.occupied;
+                            $scope.tables[index].scales[i].itemName = event.toElement.textContent;
+                        }
+                    }
+                };
+
+                $scope.overCallback = function (event, ui, index) {
+                    for (var i = 0; i < $scope.scaleSetting.count; i++) {
+                        if ($scope.tables[index].scales[i].state == $scope.scaleSetting.state.selected) {
+                            $scope.tables[index].scales[i].state = $scope.scaleSetting.state.dropOver;
+                        }
+                    }
+                };
+
+                $scope.outCallback = function (event, ui, index) {
+                    for (var i = 0; i < $scope.scaleSetting.count; i++) {
+                        if ($scope.tables[index].scales[i].state == $scope.scaleSetting.state.dropOver) {
+                            $scope.tables[index].scales[i].state = $scope.scaleSetting.state.selected;
+                        }
+                    }
+                };
+
+                $scope.accordion = {
+                    itemList: {
+                        open: true,
+                        disable: false
+                    },
+                    itemInfo: {
+                        open: false,
+                        disable: true
+                    }
+                };
+                $scope.bigCategory = {
+                    index: 0,
+                    array: []
+                };
+                $scope.middleCategory = {
+                    index: 0,
+                    array: []
+                }
+                $scope.items = [];
+                $scope.BigCategoryChange = function(index) {
+                    $scope.bigCategory.index = index;
+                    $scope.middleCategory.index = 0;
+
+                    // 중분류 요청(default로 첫번째 요소)
+                    socket.emit('RequestMiddleCategory', $scope.bigCategory.array[$scope.bigCategory.index].code);
+                    socket.on('ResponseMiddleCategory', function(result) {
+                        var data = JSON.parse(result);
+                        $scope.middleCategory.array = data.category;
+
+                        // 상품목록 요청(default로 첫번째 요소)
+                        socket.emit('RequestItemsInfo', $scope.middleCategory.array[$scope.middleCategory.index].code);
+                        socket.on('ResponseItemsInfo', function(result) {
+                            var data = JSON.parse(result);
+                            $scope.items = data.items;
+                        });
+                    });
+                }
+
+                $scope.MiddleCategoryChange = function(index) {
+                    $scope.middleCategory.index = index;
+
+                    // 상품목록 요청(default로 첫번째 요소)
+                    socket.emit('RequestItemsInfo', $scope.middleCategory.array[$scope.middleCategory.index].code);
+                    socket.on('ResponseItemsInfo', function(result) {
+                        var data = JSON.parse(result);
+                        $scope.items = data.items;
+                    });
+                }
+
+                $scope.ItemInfoOkay = function() {
+                    // 변경된 값 웹소켓으로 전달
+
+
+                    $scope.accordion.itemList.open = true;
+                    $scope.accordion.itemList.disable = false;
+                    $scope.accordion.itemInfo.open = false;
+                    $scope.accordion.itemInfo.disable = true;
+                }
+
+                $scope.ItemInfoDelete = function() {
+                    // 변경된 값 웹소켓으로 전달
+
+                    $scope.accordion.itemList.open = true;
+                    $scope.accordion.itemList.disable = false;
+                    $scope.accordion.itemInfo.open = false;
+                    $scope.accordion.itemInfo.disable = true;
+                }
+
+                // 대분류 요청
+                socket.emit('RequestBigCategory');
+                socket.on('ResponseBigCategory', function(result) {
+                    var data = JSON.parse(result);
+                    $scope.bigCategory.array = data.category;
+
+                    // 중분류 요청(default로 첫번째 요소)
+                    socket.emit('RequestMiddleCategory', $scope.bigCategory.array[$scope.bigCategory.index].code);
+                    socket.on('ResponseMiddleCategory', function(result) {
+                        var data = JSON.parse(result);
+                        $scope.middleCategory.array = data.category;
+
+                        // 상품목록 요청(default로 첫번째 요소)
+                        socket.emit('RequestItemsInfo', $scope.middleCategory.array[$scope.middleCategory.index].code);
+                        socket.on('ResponseItemsInfo', function(result) {
+                            var data = JSON.parse(result);
+                            $scope.items = data.items;
+                        });
+                    });
+                });
+            }
+        </script>
+    </head>
+    <body>
+<!-- Bootstrap core JavaScript
+================================================== -->
+<script src="js/bootstrap.js"></script>
+<script type="text/javascript">
+  $(document).ready(function(){
+	  $("#arrow3").show();
+	  $("#menu1").mouseover(function(){
+		   $("#arrow1").show();
+		   $("#arrow2").hide();
+		   $("#arrow3").hide();
+	  });
+	  $("#menu2").mouseover(function(){
+		   $("#arrow2").show();
+		   $("#arrow1").hide();
+		   $("#arrow3").hide();
+	  });
+	  $("#menu3").mouseover(function(){
+		   $("#arrow3").show();
+		   $("#arrow1").hide();
+		   $("#arrow2").hide();
+	  });
+  });
+</script>
+<div id="wrap">
+	<div class="localfood-header">
+    	<div class="localfood-header-top">
+        	<div class="localfood-header-user">
+            	<ul>
+                <li>매장관리자</li>
+                <li>공급자</li>
+                </ul>
+            </div>
+        </div>
+       
+        <div class="localfood-header-bottom">
+            <div class="localfood-header-title">
+                    로컬푸드 재고관리 시스템
+            </div>
+            <div class="localfood-header-gnb">
+                    <ul>
+                    <li id="menu1"><a href="product_reg.html">상품관리</a>
+                    <div class="arrow-up" id="arrow1" hidden></div></li>
+                    <li id="menu2"><a href="supplier_reg.html" id="menu2">공급자관리</a> <div class="arrow-up" id="arrow2" hidden></div></li>
+                    <li id="menu3"><a href="table.html" target="container">매대관리</a> <div class="arrow-up" id="arrow3" hidden></div></li>
+                    </ul>
+            </div>
+          
+
+         <ul class="navbar-nav navbar-right localfood-header-iconM">
+            <li>  
+
+              <a href="#" id="drop2" role="button" class="dropdown-toggle" data-toggle="dropdown"><span class="glyphicon glyphicon-bell"><span class="badge pull-right localfood_badge"> {{ alarms.length }}</span></span></a>
+              <ul class="dropdown-menu btn-none localfood_alarm localfood_rightpop" role="menu" aria-labelledby="drop2">
+                  <li class="localfood_alarm_title">
+                      입고알림</li>
+                  <li class="localfood_alarm_contents" ng-repeat="alarm in alarms">
+                      <span class="bold">{{ alarm.Supplier_Nm }}</span>로부터 <span class="bold">{{alarm.Item_Nm}} {{ $index }}번째 알람입니다</span> 상품이 입고대기 중 입니다. </br> <span class="date">{{ alarm.Date_ }}</span><span class="quantity">물량 : <span class="colored">{{ alarm.Supply }}</span></span><button type="button" class="localfood_alarm_btn">확인</button>
+                  </li>
+              </ul>
+
+			</li>
+            <li>
+              <a href="#" id="drop3" role="button" class="dropdown-toggle" data-toggle="dropdown"><span class="glyphicon glyphicon-user"></span></a>  
+             
+              <ul class="dropdown-menu btn-none localfood_rightpop" role="menu" aria-labelledby="drop3">
+				<li class="localfood_myinfo">이름 : 김성후</br>id : develup4</li>
+                <li class="localfood_myinfo localfood_btnarea">            <button type="button" class="btn btn-default inside-btn myinfo">로그아웃</button></li>
+              </ul>
+              
+            </li>
+          </ul>
+
+    
+    	</div>
+        
+        <div class="localfood_menu" id="m1" hidden>
+<span><a href="product_reg.html"><img src="imgs/m11.jpg"></br>상품등록</a></span>
+<span><a href="product_view.html"><img src="imgs/m12.jpg"></br>상품조회</a></span>
+<span><a href="input_list.html"><img src="imgs/m13.jpg"></br>입고조회</a></span>
+</div>
+<div class="localfood_menu" id="m2" hidden>
+<span><a href="supplier_reg.html"><img src="imgs/m21.jpg"></br>공급자등록</a></span>
+<span><a href="supplier_view.html"><img src="imgs/m22.jpg"></br>공급자조회</a></span>
+</div>
+    </div>
+</div>
+
+
+
+<!--**********************header end************************ -->
+	<div ng-controller="tablesController" class="localfood_container2">
+        <div id="tableContainer" class="localfood_table">
+            <ul id="tableList">
+              <li class="table" ng-repeat="table in tables">
+                    <div class="localfood_table_top">
+                        {{ table.name }}
+                    </div>
+                    <div class="localfood_table_top_btn" ng-click="deleteTable($event, $index)"><img src="imgs/x.jpg" /></div>
+                    
+                  <canvas ng-click="selectScale($event, $index)" table-data="tables[$index]" width='290' height='200' data-drop="true" jqyoui-droppable="{onDrop:'dropCallback($index)', onOver:'overCallback($index)', onOut:'outCallback($index)'}" data-jqyoui-options="{accept: '.draggable'}"></canvas>
+                  
+                </li>
+                <li class='table'>
+                    <div ng-click="addTable($event)" class="localfood_add_table">
+                    <a href="#"><img src="imgs/add.jpg"/></a></div>
+                </li>
+            </ul>
+        </div>
+        <div id="itemContainer" class="darkbg localfood_item_menu">
+            <accordion close-others="false">
+                <accordion-group heading="상품리스트" is-open="accordion.itemList.open" is-disabled="accordion.itemList.disable">
+                    <div class="btn-group" dropdown>
+                        <button type="button" class="btn btn-default dropdown-toggle btn-lg" dropdown-toggle>
+                            {{ bigCategory.array[bigCategory.index].name }}<span class="caret"></span>
+                        </button>
+                        <ul class="dropdown-menu localfood_dropdown" role="menu">
+                            <li><a href="#" ng-repeat="category in bigCategory.array" ng-click="BigCategoryChange($index)">{{ category.name }}</a></li>
+                        </ul>
+                    </div>
+                    <div class="btn-group" dropdown>
+                        <button type="button" class="btn btn-default dropdown-toggle btn-lg" dropdown-toggle>
+                            {{ middleCategory.array[middleCategory.index].name }}<span class="caret"></span>
+                        </button>
+                        <ul class="dropdown-menu localfood_dropdown" role="menu">
+                            <li><a href="#" ng-repeat="category in middleCategory.array" ng-click="MiddleCategoryChange($index)">{{ category.name }}</a></li>
+                        </ul>
+                    </div>
+                    <div class="localfood_item_list">
+                        <ul>
+                            <li ng-repeat="item in items" class="draggable items2" data-drag="true" data-jqyoui-options="{revert: 'invalid', helper: 'clone'}" jqyoui-draggable="{animate: true}">{{ item.name }}</li>
+                        </ul>
+                    </div>
+                </accordion-group>
+                <accordion-group heading="상품 정보" is-open="accordion.itemInfo.open" is-disabled="accordion.itemInfo.disable">
+                    <div>
+                        <div class="modal-body localfood_product_info">
+                            <h4>저울코드</h4>
+                            <div class="alert alert-info">{{ tables[accordion.itemInfo.tableIndex].scales[accordion.itemInfo.scaleIndex].code }}</div>
+                            <h4>상품명</h4>
+                            <div class="alert alert-info">{{ tables[accordion.itemInfo.tableIndex].scales[accordion.itemInfo.scaleIndex].itemName }}</div>
+                            <h4>공급자</h4>
+                            <div class="alert alert-info">{{ tables[accordion.itemInfo.tableIndex].scales[accordion.itemInfo.scaleIndex].supplier }}</div>
+                            <h4>안전재고량</h4>
+                            <div class="alert alert-info">{{ tables[accordion.itemInfo.tableIndex].scales[accordion.itemInfo.scaleIndex].safeStock }} %
+                            <rzslider rz-slider-model="tables[accordion.itemInfo.tableIndex].scales[accordion.itemInfo.scaleIndex].safeStock" rz-slider-floor="0" rz-slider-ceil="100"></rzslider></div>
+                            <h4>적정재고량</h4>
+                            <div class="alert alert-info">{{ tables[accordion.itemInfo.tableIndex].scales[accordion.itemInfo.scaleIndex].fitStock }} %
+                            <rzslider rz-slider-model="tables[accordion.itemInfo.tableIndex].scales[accordion.itemInfo.scaleIndex].fitStock" rz-slider-floor="0" rz-slider-ceil="100"></rzslider></div>
+                            <h4>알림여부</h4>
+                            <div class="alert alert-info"><button type="button" class="btn btn-primary" ng-model="tables[accordion.itemInfo.tableIndex].scales[accordion.itemInfo.scaleIndex].isAlarm" btn-checkbox>ON</button></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button ng-click="ItemInfoOkay()" class="btn btn-primary btn-lg">확인</button>
+                            <button ng-click="ItemInfoDelete()" class="btn btn-default btn-lg">삭제</button>
+                        </div>
+                    </div>
+                </accordion-group>
+            </accordion>
+        
+        </div>
+    </div>
+
+    </body>
+</html>
