@@ -6,6 +6,7 @@ documents/부록1 매뉴얼 보고 정성껏 작성할 것
 
 ## Tobbit
 마찬가지로 문서에서 그림따고 할것
+2013 교육용게임 <토빗 : 뜻밖의 여정> - 서울어코드 SW 경진대회 최우수상
 
 ## Subject Nil
 2003 SRPG by VisualBasic with DirectX7 (2009 Remake by C++ with DirectX9)
