@@ -49,6 +49,7 @@ Subject Nil은 `창세기전`의 영향을 받은 정통 SRPG를 표방할뻔 �
 
 	KeyPoint! 전투에서 승리하시려면 'v'키를, 버그로 진행이 안되실때는 'p'키를!
 
+![README](https://user-images.githubusercontent.com/8960704/222175016-346665a0-e119-4434-8182-20e1592b55f4.JPG)
 
 
 
