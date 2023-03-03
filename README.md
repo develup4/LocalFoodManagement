@@ -140,6 +140,5 @@ C++언어와 Directx 3D에서 2D프로그래밍을 위해서 제공하는 Sprite
 
 - v3 : rust 연습용으로 bevy 엔진을 이용해서 구현 예정입니다.
 
-# 라이센스
-
-맘껐 쓰세요
+# License
+MIT license
