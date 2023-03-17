@@ -87,9 +87,5 @@ Subject Nil은 `창세기전`의 영향을 받은 정통 SRPG를 표방할뻔 �
 3. 사용자의 조작과 인공지능에 의해 CBattle 클래스가 관장하는 BOB들을 조작하여 전투를
 진행시킨다.
 
-
-## V3
-Rust 연습용으로 Bevy 엔진을 이용해서 구현 예정입니다.
-
 ## License
 MIT license
